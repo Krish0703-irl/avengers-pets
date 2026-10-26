@@ -23,10 +23,10 @@ const G = 1500;     // gravity, px/s²
 const DATA_DIR = GLib.build_filenamev([GLib.get_user_data_dir(), 'avengers-pets']);
 const SETTINGS_FILE = GLib.build_filenamev([DATA_DIR, 'settings.json']);
 
-const ORDER = ['spidey', 'ironman', 'cap', 'hulk', 'thor', 'widow', 'hawkeye', 'mochi'];
+const ORDER = ['spidey', 'ironman', 'cap', 'hulk', 'thor', 'widow', 'hawkeye', 'strange', 'mochi'];
 const NAMES = {
     spidey: 'Spider-Man', ironman: 'Iron Man', cap: 'Captain America', hulk: 'Hulk',
-    thor: 'Thor', widow: 'Black Widow', hawkeye: 'Hawkeye', mochi: 'Mochi',
+    thor: 'Thor', widow: 'Black Widow', hawkeye: 'Hawkeye', strange: 'Doctor Strange', mochi: 'Mochi',
 };
 const DEFAULT_ON = ['spidey', 'ironman', 'cap', 'hulk'];
 
@@ -1211,6 +1211,19 @@ class Hero {
         this.spin = Math.random() < 0.5 ? 2 * Math.PI : 0;
     }
 
+    // Dropped through one of Doctor Strange's portals.
+    warp(x, y) {
+        if (this.state === 'drag')
+            return;
+        this.x = x;
+        this.y = y;
+        this.vx = 0;
+        this.vy = 60;
+        this.knockCd = 0;
+        this.onKnocked();
+        this.say(pick(['Whoa!', 'Where am I?!', 'Not again!', 'Strange!']), 1.8);
+    }
+
     startChat(other, text, delay) {
         this.state = 'chat';
         this.timer = 3.6;
@@ -2060,7 +2073,7 @@ class Cap extends Hero {
                 hit = true;
             }
             const o = this.hitTest(s.x, s.y, r);
-            if (o && o.knock(Math.sign(s.vx) * 260, -420)) {
+            if (o && (o.knock(Math.sign(s.vx) * 260, -420) || o.blocking)) {
                 s.vx = -s.vx;
                 hit = true;
             }
@@ -2435,7 +2448,7 @@ class Thor extends Hero {
                 sparks(this.particles, m.x, m.y, 5);
             }
             const o = this.hitTest(m.x, m.y, 8);
-            if (o && o.knock(Math.sign(m.vx) * 320, -460)) {
+            if (o && (o.knock(Math.sign(m.vx) * 320, -460) || o.blocking)) {
                 m.back = true;
                 sparks(this.particles, m.x, m.y, 6);
             }
@@ -3189,9 +3202,454 @@ class Mochi extends Hero {
     }
 }
 
+// ---- Doctor Strange ----
+const MAGIC = [1, 0.62, 0.15];
+
+// A glowing spell circle, as used for his shields.
+function drawMandala(cr, x, y, r, t, a = 1) {
+    cr.save();
+    cr.translate(x, y);
+    const g = new Cairo.RadialGradient(0, 0, 0, 0, 0, r * 1.3);
+    g.addColorStopRGBA(0, 1, 0.7, 0.2, 0.25 * a);
+    g.addColorStopRGBA(1, 1, 0.5, 0.1, 0);
+    cr.setSource(g);
+    cr.arc(0, 0, r * 1.3, 0, 2 * Math.PI);
+    cr.fill();
+    rgb(cr, MAGIC, 0.95 * a);
+    cr.setLineWidth(r * 0.07);
+    cr.arc(0, 0, r, 0, 2 * Math.PI);
+    cr.stroke();
+    cr.arc(0, 0, r * 0.72, 0, 2 * Math.PI);
+    cr.stroke();
+    cr.rotate(t * 1.5);
+    for (const off of [0, Math.PI / 4]) {
+        cr.newPath();
+        for (let i = 0; i < 4; i++) {
+            const ang = off + i * Math.PI / 2;
+            const px = Math.cos(ang) * r * 0.72, py = Math.sin(ang) * r * 0.72;
+            if (i)
+                cr.lineTo(px, py);
+            else
+                cr.moveTo(px, py);
+        }
+        cr.closePath();
+        cr.stroke();
+    }
+    cr.setLineWidth(r * 0.05);
+    for (let i = 0; i < 16; i++) {
+        const ang = -t * 3 + i * Math.PI / 8;
+        line(cr, Math.cos(ang) * r * 0.78, Math.sin(ang) * r * 0.78, Math.cos(ang) * r * 0.92, Math.sin(ang) * r * 0.92);
+    }
+    cr.stroke();
+    cr.restore();
+}
+
+// A sparking portal ring; flat ones sit on the floor or open in the air.
+function drawPortal(cr, p, t) {
+    const f = Math.min(1, (p.max - p.life) / 0.25, p.life / 0.25);
+    const rx = p.rx * f, ry = p.ry * f;
+    if (rx < 1)
+        return;
+    cr.save();
+    cr.translate(p.x, p.y);
+    cr.save();
+    cr.scale(rx, ry);
+    cr.arc(0, 0, 1, 0, 2 * Math.PI);
+    cr.restore();
+    cr.setSourceRGBA(0.12, 0.05, 0.1, 0.55);
+    cr.fill();
+    for (const [w, a] of [[6, 0.3], [2.5, 0.9]]) {
+        cr.save();
+        cr.scale(rx, ry);
+        cr.arc(0, 0, 1, 0, 2 * Math.PI);
+        cr.restore();
+        rgb(cr, MAGIC, a);
+        cr.setLineWidth(w);
+        cr.stroke();
+    }
+    for (let i = 0; i < 18; i++) {
+        const ang = t * 6 + i * Math.PI / 9;
+        const px = Math.cos(ang) * rx, py = Math.sin(ang) * ry;
+        rgb(cr, [1, 0.85, 0.4], 0.9);
+        cr.arc(px + Math.cos(ang) * 3, py + Math.sin(ang) * 3, 1.1, 0, 2 * Math.PI);
+        cr.fill();
+    }
+    cr.restore();
+}
+
+// the Eye of Agamotto glows brighter while he's casting
+let h_eyeColor = [0.3, 0.75, 0.35];
+const ST_BLUE = [0.15, 0.24, 0.42];
+const ST_DARK = [0.16, 0.17, 0.24];
+
+const STRANGE = {
+    scale: 1, arm: [ST_BLUE, ST_DARK, [0.4, 0.28, 0.2]], leg: [ST_DARK, ST_DARK, BROWN],
+    back(cr, h) {
+        // the Cloak of Levitation, with its tall collar
+        const f = h.capeFlow ?? 0, wv = Math.sin(h.t * 4) * (1 + f);
+        cr.moveTo(-4.5, -13.4);
+        cr.curveTo(-9, -6, -10 - f * 3 + wv, 4 + f * 3, -8 - f * 2 + wv, 12 + f * 6);
+        cr.curveTo(-5 + wv, 13 + f * 6, -1 + wv * 0.5, 11 + f * 6, 2 + wv * 0.6, 12 + f * 6);
+        cr.curveTo(2, 2, 3, -6, 4, -13.4);
+        cr.closePath();
+        fillOutline(cr, CAPE, 0.8);
+        cr.moveTo(-6.5, -13);
+        cr.curveTo(-12, -18, -12.5, -26, -9.8, -31);
+        cr.lineTo(-4, -16);
+        cr.lineTo(4, -16);
+        cr.lineTo(10.8, -31);
+        cr.curveTo(13.5, -25, 12, -17, 6.5, -13);
+        cr.closePath();
+        fillOutline(cr, [0.62, 0.06, 0.08], 0.8);
+    },
+    torso(cr) {
+        torsoPath(cr);
+        fillOutline(cr, ST_BLUE);
+        rgb(cr, [0.82, 0.68, 0.45]);
+        cr.setLineWidth(0.9);
+        line(cr, -4.6, -13, 3.6, -2.5);
+        line(cr, 4.6, -13, -3.6, -2.5);
+        cr.stroke();
+        cr.rectangle(-4.25, -2.2, 8.5, 2.4);
+        rgb(cr, [0.62, 0.38, 0.18]);
+        cr.fill();
+        cr.arc(0, -10.5, 2.1, 0, 2 * Math.PI);
+        fillOutline(cr, GOLD, 0.5);
+        ell(cr, 0, -10.5, 1.2, 0.7);
+        rgb(cr, h_eyeColor);
+        cr.fill();
+    },
+    head(cr, h) {
+        headPath(cr);
+        fillOutline(cr, SKIN);
+        cr.save();
+        headPath(cr);
+        cr.clip();
+        // swept-back dark hair, grey at the temples
+        cr.moveTo(-10, -21);
+        cr.curveTo(-9, -33, 9, -34, 10, -22);
+        cr.curveTo(7, -27, 2, -28, -2, -27);
+        cr.curveTo(-6, -26, -8, -24, -10, -17);
+        cr.closePath();
+        rgb(cr, [0.17, 0.12, 0.1]);
+        cr.fill();
+        rgb(cr, [0.75, 0.75, 0.75]);
+        ell(cr, -8, -22, 1.4, 2.6);
+        cr.fill();
+        // goatee and moustache
+        rgb(cr, [0.17, 0.12, 0.1]);
+        cr.moveTo(-1.6, -17.6);
+        quadTo(cr, 0.9, -18.6, 3.4, -17.6);
+        quadTo(cr, 3, -16.8, 0.9, -17.1);
+        quadTo(cr, -1.2, -16.8, -1.6, -17.6);
+        cr.fill();
+        ell(cr, 0.9, -14, 1.6, 1.8);
+        cr.fill();
+        cr.restore();
+        eyes(cr, h, -20.8, 2.6, 1.05);
+        brows(cr, [0.17, 0.12, 0.1], -23.4, 0.5, 0.8);
+        mouth(cr, 'flat', -15.9);
+        headPath(cr);
+        rgb(cr, INK);
+        cr.setLineWidth(0.9);
+        cr.stroke();
+    },
+    front(cr, h, P) {
+        if (h.state === 'shield') {
+            for (const key of ['na', 'fa']) {
+                const [, , x2, y2] = P[key];
+                drawMandala(cr, x2 + 2.5, y2, key === 'na' ? 10 : 8, h.t * (key === 'na' ? 1 : -1));
+            }
+        } else if (['portalOut', 'portalIn', 'prank'].includes(h.state)) {
+            const [, , x2, y2] = P.na;
+            rgb(cr, MAGIC, 0.9);
+            for (let i = 0; i < 5; i++) {
+                const ang = h.t * 9 + i * 1.25;
+                cr.arc(x2 + Math.cos(ang) * 3, y2 + Math.sin(ang) * 3, 0.6, 0, 2 * Math.PI);
+                cr.fill();
+            }
+        }
+    },
+};
+class Strange extends Hero {
+    constructor(world) {
+        super(world, STRANGE);
+        this.portals = [];
+        this.vis = 1;
+        this.capeFlow = 0;
+        this.tx = 0;
+        this.ty = 0;
+    }
+
+    quips() {
+        return ['By the Vishanti!', 'The Sorcerer Supreme is in.', 'Dormammu, I\'ve come to bargain.', 'Time is relative.'];
+    }
+
+    ouch() {
+        return ['How rude.', 'My cloak!', 'Hmph.'];
+    }
+
+    get blocking() {
+        return this.state === 'shield';
+    }
+
+    get grounded() {
+        return ['idle', 'walk', 'land', 'chat'].includes(this.state);
+    }
+
+    enter() {
+        this.x = rand(this.W * 0.15, this.W * 0.85);
+        this.y = rand(120, this.floor * 0.55);
+        this.arrive();
+        this.say('The Sorcerer Supreme is in.', 2.5);
+    }
+
+    newTarget() {
+        this.tx = this.paused ? this.x : rand(60, this.W - 60);
+        this.ty = this.paused ? this.y : rand(80, this.floor - 140);
+    }
+
+    decide() {
+        const r = Math.random();
+        if (this.paused) {
+            this.state = 'idle';
+            this.timer = 3;
+        } else if (r < 0.4) {
+            this.state = 'float';
+            this.newTarget();
+        } else if (r < 0.55 && this.prankTarget()) {
+            this.startPrank();
+        } else if (r < 0.7) {
+            this.startPortal();
+        } else if (r < 0.85) {
+            this.state = 'walk';
+            this.dir = pick([-1, 1]);
+            this.timer = rand(2, 4);
+        } else {
+            this.state = 'idle';
+            this.timer = rand(1.5, 3);
+        }
+    }
+
+    prankTarget() {
+        const ok = this.others().filter(o => o.grounded && o.state !== 'drag');
+        return ok.length ? pick(ok) : null;
+    }
+
+    startPrank() {
+        this.victim = this.prankTarget();
+        if (!this.victim)
+            return;
+        this.dir = Math.sign(this.victim.x - this.x) || this.dir;
+        this.state = 'prank';
+        this.timer = 1.3;
+        this.warped = false;
+        this.portals.push({x: this.victim.x, y: this.floor - 2, rx: 24, ry: 6, life: 1.1, max: 1.1});
+        this.say(pick(['Going somewhere?', 'Watch your step.', 'Hold still.']), 1.8);
+    }
+
+    startPortal() {
+        this.state = 'portalOut';
+        this.timer = 0.7;
+        const [cx, cy] = this.center();
+        this.portals.push({x: cx, y: cy, rx: 18, ry: 30, life: 1, max: 1});
+    }
+
+    arrive() {
+        this.state = 'portalIn';
+        this.timer = 0.7;
+        this.vis = 0;
+        const [cx, cy] = this.center();
+        this.portals.push({x: cx, y: cy, rx: 18, ry: 30, life: 1, max: 1});
+    }
+
+    knock(vx, vy) {
+        if (this.state === 'shield') {
+            const [cx, cy] = this.center();
+            sparks(this.particles, cx + this.dir * 12, cy, 6, MAGIC);
+            return false;
+        }
+        return super.knock(vx, vy);
+    }
+
+    onKnocked() {
+        this.vis = 1;
+        this.state = 'float';
+        this.spin = 2 * Math.PI;
+        this.newTarget();
+    }
+
+    onRelease(vx, vy) {
+        this.vx = vx;
+        this.vy = vy;
+        this.state = 'float';
+        this.newTarget();
+    }
+
+    onClick() {
+        this.say(pick(['By the Vishanti!', 'Shields up.', 'Behold.']), 1.8);
+        this.state = 'shield';
+        this.timer = 2;
+    }
+
+    menu() {
+        return [
+            ['Cast a shield', () => {
+                this.state = 'shield';
+                this.timer = 2.5;
+            }],
+            ['Open a portal', () => this.startPortal()],
+            ['Portal-prank someone', () => this.prankTarget() && this.startPrank()],
+            ['Meditate', () => {
+                if (this.grounded) {
+                    this.state = 'float';
+                    this.newTarget();
+                } else {
+                    this.state = 'meditate';
+                    this.timer = 5;
+                }
+            }],
+        ];
+    }
+
+    behave(dt) {
+        for (const p of this.portals)
+            p.life -= dt;
+        this.portals = this.portals.filter(p => p.life > 0);
+        this.capeFlow = clampv(Math.hypot(this.vx, this.vy) / 300, 0, 1);
+        h_eyeColor = ['shield', 'portalOut', 'portalIn', 'prank'].includes(this.state) ? [0.4, 1, 0.45] : [0.3, 0.75, 0.35];
+        const airborne = this.y < this.floor - this.standH - 4;
+        switch (this.state) {
+        case 'float': {
+            const d = this.steer(dt, this.tx, this.ty + Math.sin(this.t * 1.6) * 8, 130);
+            this.targetRot = clampv(this.vx * 0.001, -0.15, 0.15);
+            if (d < 20) {
+                const r = Math.random();
+                if (this.paused) {
+                    this.newTarget();
+                } else if (r < 0.25) {
+                    this.state = 'meditate';
+                    this.timer = rand(3, 6);
+                } else if (r < 0.45) {
+                    this.startPortal();
+                } else if (r < 0.6 && this.prankTarget()) {
+                    this.startPrank();
+                } else if (r < 0.72) {
+                    this.state = 'shield';
+                    this.timer = 2;
+                } else if (r < 0.85) {
+                    this.state = 'descend';
+                    this.tx = this.x + rand(-100, 100);
+                } else {
+                    this.newTarget();
+                }
+            }
+            break;
+        }
+        case 'descend': {
+            const gy = this.floor - this.standH;
+            const d = this.steer(dt, clampv(this.tx, 60, this.W - 60), gy, 110);
+            if (this.y >= gy - 3 || d < 6)
+                this.land(0.3);
+            break;
+        }
+        case 'meditate':
+        case 'shield':
+        case 'prank': {
+            const damp = 1 - Math.min(1, dt * 4);
+            this.vx *= damp;
+            this.vy *= damp;
+            this.x += this.vx * dt;
+            if (airborne || this.state === 'meditate')
+                this.y += Math.sin(this.t * 1.6) * 0.3;
+            this.timer -= dt;
+            if (this.state === 'prank' && !this.warped && this.timer < 0.8) {
+                this.warped = true;
+                const v = this.victim;
+                if (v && this.world.heroes.includes(v)) {
+                    const nx = rand(80, this.W - 80);
+                    this.portals.push({x: nx, y: 30, rx: 24, ry: 6, life: 1, max: 1});
+                    v.warp(nx, 40);
+                }
+            }
+            if (this.timer <= 0) {
+                if (airborne || this.state === 'meditate') {
+                    this.state = 'float';
+                    this.newTarget();
+                } else {
+                    this.decide();
+                }
+            }
+            break;
+        }
+        case 'portalOut':
+            this.timer -= dt;
+            this.vis = clampv(this.timer / 0.5, 0, 1);
+            if (this.timer <= 0) {
+                this.x = rand(60, this.W - 60);
+                this.y = rand(100, this.floor - 160);
+                this.arrive();
+            }
+            break;
+        case 'portalIn':
+            this.timer -= dt;
+            this.vis = clampv(1 - (this.timer - 0.1) / 0.5, 0, 1);
+            if (this.timer <= 0) {
+                this.vis = 1;
+                this.state = 'float';
+                this.newTarget();
+            }
+            break;
+        default:
+            super.behave(dt);
+        }
+    }
+
+    pose() {
+        switch (this.state) {
+        case 'float':
+        case 'descend':
+            return {na: [0.9, 0.6], fa: [-0.5, 0.4], nl: [0.15, -0.35], fl: [-0.1, -0.25]};
+        case 'meditate':
+            return {na: [1.1, 1.3], fa: [1.0, 1.4], nl: [1.4, -2.6], fl: [1.2, -2.5]};
+        case 'shield':
+            return {na: [1.5, 0.2], fa: [1.3, 0.3], nl: [0.3, -0.2], fl: [-0.3, -0.1]};
+        case 'portalOut':
+        case 'portalIn':
+            return {na: [1.6 + 0.6 * Math.sin(this.t * 10), 0.5], fa: [-0.4, 0.3], nl: [0.1, -0.2], fl: [-0.1, -0.1]};
+        case 'prank':
+            return {na: [0.9, 0], fa: [-0.4, 0.3], nl: [0.2, -0.2], fl: [-0.2, -0.1]};
+        default:
+            return super.pose();
+        }
+    }
+
+    extraPoints() {
+        return this.portals.flatMap(p => [[p.x - p.rx, p.y - p.ry, 10], [p.x + p.rx, p.y + p.ry, 10]]);
+    }
+
+    paintBehind(cr) {
+        for (const p of this.portals)
+            drawPortal(cr, p, this.t);
+    }
+
+    paintBody(cr) {
+        if (this.vis >= 1) {
+            super.paintBody(cr);
+            return;
+        }
+        if (this.vis <= 0)
+            return;
+        cr.pushGroup();
+        super.paintBody(cr);
+        cr.popGroupToSource();
+        cr.paintWithAlpha(this.vis);
+    }
+}
+
 const CLASSES = {
     spidey: SpiderMan, ironman: IronMan, cap: Cap, hulk: Hulk,
-    thor: Thor, widow: Widow, hawkeye: Hawkeye, mochi: Mochi,
+    thor: Thor, widow: Widow, hawkeye: Hawkeye, strange: Strange, mochi: Mochi,
 };
 
 // What two heroes say when they bump into each other: [first, second, first line, reply].
@@ -3208,6 +3666,11 @@ const CHATS = [
     ['ironman', 'hulk', 'Easy, big guy.', 'Hulk SMASH tin man?'],
     ['hulk', 'spidey', 'Bug man!', 'Spider, actually!'],
     ['cap', 'widow', 'Ready, Nat?', 'Always, Rogers.'],
+    ['strange', 'ironman', 'Stark.', 'Nice cape, Doctor.'],
+    ['strange', 'spidey', 'Focus, kid.', 'Yes, Doctor Strange!'],
+    ['thor', 'strange', 'Wizard!', 'Hello, Thor.'],
+    ['strange', 'hulk', 'Hello, big guy.', 'Magic man!'],
+    ['strange', 'cap', 'Captain.', 'Doctor. Nice tricks.'],
 ];
 
 function chatLines(a, b) {
@@ -3536,7 +3999,7 @@ class Panel {
             card.pack_start(art, false, false, 0);
             card.pack_start(name, false, false, 0);
             card.pack_start(sw, false, false, 0);
-            grid.attach(card, i % 4, Math.floor(i / 4), 1, 1);
+            grid.attach(card, i % 5, Math.floor(i / 5), 1, 1);
         });
         box.pack_start(grid, false, false, 0);
 
@@ -3587,6 +4050,7 @@ function snapshot(path) {
         thor: ['idle', 'walk', 'lightning', 'flyfast', 'throw', 'spinup'],
         widow: ['idle', 'run', 'slide', 'bite', 'fall', 'chat'],
         hawkeye: ['idle', 'walk', 'aim', 'recover', 'land', 'chat'],
+        strange: ['idle', 'float', 'meditate', 'shield', 'portalIn', 'chat'],
         mochi: ['idle', 'walk', 'sleep', 'fall', 'chat', 'idle'],
     };
     ids.forEach((id, r) => {
