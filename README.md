@@ -24,6 +24,12 @@ Fan-made for fun. The Marvel characters belong to Marvel.
 - When two heroes meet they stop and chat ("Hi Mr. Stark!" / "Kid. We talked about this.").
 
 
+## On the desktop
+
+The pets at their real size on an Ubuntu desktop.
+
+![All nine pets on an Ubuntu desktop](images/desktop.png)
+
 ## Every pose
 
 ![All the poses](images/poses.png)
