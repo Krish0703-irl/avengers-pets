@@ -1,0 +1,308 @@
+<title>Mochi the Pocket Pet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;600;700&display=swap">
+<style>
+/* Layout: one centered "habitat" card — pet on a little hill up top, needs meters and care buttons below */
+:root {
+  --bg: #eef3ec;
+  --panel: #ffffff;
+  --ink: #23312a;
+  --muted: #66766d;
+  --line: #d6e0d6;
+  --sky: #dcefff;
+  --hill: #a9d39a;
+  --hill-dark: #8cc07c;
+  --body: #ffb8a8;
+  --body-shade: #f29a87;
+  --accent: #2f7d5b;
+  --accent-ink: #ffffff;
+  --good: #3a9a5f;
+  --warn: #d99a1e;
+  --bad: #d4553f;
+  --night: #2b3550;
+  --font-display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151c18; --panel: #1f2823; --ink: #e6efe8; --muted: #9db0a4; --line: #33423a;
+    --sky: #23344a; --hill: #3f6a46; --hill-dark: #345a3b; --body: #f7a898; --body-shade: #dc8a78;
+    --accent: #5cc08f; --accent-ink: #0f1a14; --good: #5cc08f; --warn: #f0b545; --bad: #f07a63; --night: #0f1424;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151c18; --panel: #1f2823; --ink: #e6efe8; --muted: #9db0a4; --line: #33423a;
+  --sky: #23344a; --hill: #3f6a46; --hill-dark: #345a3b; --body: #f7a898; --body-shade: #dc8a78;
+  --accent: #5cc08f; --accent-ink: #0f1a14; --good: #5cc08f; --warn: #f0b545; --bad: #f07a63; --night: #0f1424;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px;
+  padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 460px; margin: 0 auto; display: grid; gap: 16px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.name {
+  font-family: var(--font-display); font-weight: 800; font-size: 2rem; line-height: 1;
+  border: 0; background: none; color: var(--ink); padding: 2px 4px; margin: -2px -4px;
+  border-radius: 8px; width: 9ch; min-width: 0;
+}
+.name:hover { background: var(--line); }
+.name:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.age { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+
+.habitat {
+  position: relative; border-radius: 22px; overflow: hidden; aspect-ratio: 1 / .82; max-width: 100%;
+  background: var(--sky); transition: background .8s;
+}
+.habitat.asleep { background: var(--night); }
+.habitat svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mood {
+  position: absolute; left: 14px; top: 12px; padding: 4px 10px; border-radius: 999px;
+  background: var(--panel); font-weight: 700; font-size: .8rem; color: var(--ink);
+}
+.fx { position: absolute; inset: 0; pointer-events: none; }
+.fx span { position: absolute; font-size: 22px; animation: float 1.4s ease-out forwards; }
+@keyframes float { from { transform: translateY(0) scale(.6); opacity: 1 } to { transform: translateY(-90px) scale(1.1); opacity: 0 } }
+
+#pet { cursor: pointer; transform-origin: 200px 250px; animation: bob 2.6s ease-in-out infinite; }
+.asleep #pet { animation: breathe 4s ease-in-out infinite; }
+.sad #pet { animation-duration: 4s; }
+#pet.squish { animation: squish .35s ease; }
+@keyframes bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
+@keyframes breathe { 0%,100% { transform: scaleY(1) } 50% { transform: scaleY(.96) } }
+@keyframes squish { 0% { transform: scale(1,1) } 40% { transform: scale(1.12,.86) } 100% { transform: scale(1,1) } }
+.eye-open { animation: blink 5s infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes blink { 0%,94%,100% { transform: scaleY(1) } 97% { transform: scaleY(.1) } }
+.zzz { font-family: var(--font-display); font-weight: 800; fill: #cfd8ff; opacity: 0; }
+.asleep .zzz { animation: zz 3s infinite; }
+.asleep .zzz:nth-of-type(2) { animation-delay: 1s; }
+.asleep .zzz:nth-of-type(3) { animation-delay: 2s; }
+@keyframes zz { 0% { opacity: 0; transform: translate(0,0) } 30% { opacity: 1 } 100% { opacity: 0; transform: translate(18px,-40px) } }
+.stars { opacity: 0; transition: opacity .8s; }
+.asleep .stars { opacity: 1; }
+
+.stats { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; display: grid; gap: 10px; }
+.stat { display: grid; grid-template-columns: 78px 1fr 34px; align-items: center; gap: 10px; }
+.stat label { font-weight: 700; font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.bar { height: 12px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: inherit; background: var(--good); transition: width .5s, background .5s; }
+.stat output { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; font-size: .85rem; }
+
+.actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.actions button {
+  font: 700 .9rem var(--font-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+  border-bottom-width: 3px; border-radius: 14px; padding: 10px 4px 8px; cursor: pointer;
+  display: grid; justify-items: center; gap: 2px; transition: transform .1s, border-color .2s;
+}
+.actions button .ic { font-size: 1.5rem; line-height: 1.1; }
+.actions button:hover { border-color: var(--accent); }
+.actions button:active { transform: translateY(2px); border-bottom-width: 1px; }
+.actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actions button:disabled { opacity: .45; cursor: not-allowed; }
+.actions button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.log { color: var(--muted); font-size: .9rem; min-height: 1.4em; text-align: center; }
+.foot { display: flex; justify-content: center; }
+.foot button { font: 600 .8rem var(--font-body); color: var(--muted); background: none; border: 0; cursor: pointer; text-decoration: underline; }
+.confirm { display: flex; gap: 8px; align-items: center; justify-content: center; font-size: .85rem; flex-wrap: wrap; }
+.confirm button { text-decoration: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; color: var(--ink); }
+@media (max-width: 400px) { .actions { grid-template-columns: repeat(2, 1fr); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <input id="petName" class="name" value="Mochi" maxlength="12" aria-label="Pet name" spellcheck="false">
+    <span class="age" id="age">Hatched just now</span>
+  </header>
+
+  <div class="habitat" id="habitat">
+    <svg class="scene" viewBox="0 0 400 330" aria-hidden="false" role="img" aria-label="Your pet">
+      <g class="stars" fill="#fff">
+        <circle cx="50" cy="50" r="2"/><circle cx="120" cy="30" r="1.5"/><circle cx="330" cy="60" r="2"/>
+        <circle cx="270" cy="25" r="1.5"/><circle cx="360" cy="120" r="1.5"/><circle cx="30" cy="130" r="1.5"/>
+        <circle cx="340" cy="40" r="10" fill="#f6f1c7"/>
+      </g>
+      <ellipse cx="200" cy="350" rx="290" ry="90" fill="var(--hill)"/>
+      <ellipse cx="200" cy="268" rx="70" ry="10" fill="var(--hill-dark)"/>
+      <g id="pet" tabindex="0" role="button" aria-label="Pet your pet">
+        <!-- ears -->
+        <path d="M150 150 Q138 100 172 122 Z" fill="var(--body-shade)"/>
+        <path d="M250 150 Q262 100 228 122 Z" fill="var(--body-shade)"/>
+        <!-- body -->
+        <path d="M200 115 C265 115 285 175 280 215 C276 252 245 268 200 268 C155 268 124 252 120 215 C115 175 135 115 200 115 Z" fill="var(--body)"/>
+        <ellipse cx="200" cy="225" rx="48" ry="32" fill="#fff" opacity=".35"/>
+        <!-- feet -->
+        <ellipse cx="170" cy="266" rx="16" ry="7" fill="var(--body-shade)"/>
+        <ellipse cx="230" cy="266" rx="16" ry="7" fill="var(--body-shade)"/>
+        <!-- cheeks -->
+        <ellipse cx="152" cy="200" rx="13" ry="8" fill="#ff7f8e" opacity=".45"/>
+        <ellipse cx="248" cy="200" rx="13" ry="8" fill="#ff7f8e" opacity=".45"/>
+        <!-- eyes -->
+        <g id="eyesOpen">
+          <g class="eye-open"><ellipse cx="172" cy="178" rx="9" ry="12" fill="#2a2320"/><circle cx="175" cy="173" r="3.2" fill="#fff"/></g>
+          <g class="eye-open"><ellipse cx="228" cy="178" rx="9" ry="12" fill="#2a2320"/><circle cx="231" cy="173" r="3.2" fill="#fff"/></g>
+        </g>
+        <g id="eyesClosed" hidden stroke="#2a2320" stroke-width="4" stroke-linecap="round" fill="none">
+          <path d="M162 180 Q172 188 182 180"/><path d="M218 180 Q228 188 238 180"/>
+        </g>
+        <!-- mouth -->
+        <path id="mouth" d="M188 205 Q200 218 212 205" stroke="#2a2320" stroke-width="4" stroke-linecap="round" fill="none"/>
+      </g>
+      <text class="zzz" x="262" y="140" font-size="22">z</text>
+      <text class="zzz" x="272" y="122" font-size="28">z</text>
+      <text class="zzz" x="284" y="100" font-size="34">Z</text>
+    </svg>
+    <div class="mood" id="mood">Content</div>
+    <div class="fx" id="fx"></div>
+  </div>
+
+  <section class="stats" aria-label="Needs">
+    <div class="stat"><label>Food</label><div class="bar"><i id="b-food"></i></div><output id="v-food">80</output></div>
+    <div class="stat"><label>Fun</label><div class="bar"><i id="b-fun"></i></div><output id="v-fun">80</output></div>
+    <div class="stat"><label>Energy</label><div class="bar"><i id="b-energy"></i></div><output id="v-energy">80</output></div>
+    <div class="stat"><label>Clean</label><div class="bar"><i id="b-clean"></i></div><output id="v-clean">80</output></div>
+  </section>
+
+  <div class="actions">
+    <button id="feed"><span class="ic">🍙</span>Feed</button>
+    <button id="play"><span class="ic">🧶</span>Play</button>
+    <button id="sleep"><span class="ic">🌙</span><span id="sleepLabel">Sleep</span></button>
+    <button id="bath"><span class="ic">🫧</span>Bathe</button>
+  </div>
+  <p class="log" id="log" aria-live="polite">Tap Mochi to give a pat.</p>
+  <div class="foot" id="foot"><button id="reset">Start over with a new pet</button></div>
+</div>
+
+<script>
+(() => {
+  const KEY = 'pocket-pet-v1';
+  const RATES = { food: 4, fun: 3, energy: 2.5, clean: 1.5 }; // points lost per hour, scaled up below for play
+  const SPEED = 12; // 1 real minute = 12 pet minutes, so needs move while you watch
+  const fresh = () => ({ name: 'Mochi', food: 80, fun: 80, energy: 80, clean: 80, asleep: false, born: Date.now(), last: Date.now() });
+  let s;
+  try { s = JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch { s = fresh(); }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch {} };
+  const $ = id => document.getElementById(id);
+  const clamp = v => Math.max(0, Math.min(100, v));
+
+  function tick() {
+    const now = Date.now();
+    const hours = Math.min((now - s.last) / 3.6e6 * SPEED, 48);
+    s.last = now;
+    s.food = clamp(s.food - RATES.food * hours);
+    s.fun = clamp(s.fun - RATES.fun * hours * (s.asleep ? .2 : 1));
+    s.clean = clamp(s.clean - RATES.clean * hours);
+    s.energy = clamp(s.energy + (s.asleep ? 12 : -RATES.energy) * hours);
+    if (s.asleep && s.energy >= 100) { s.asleep = false; say(`${s.name} woke up refreshed.`); }
+    render(); save();
+  }
+
+  function mood() {
+    if (s.asleep) return ['Sleeping', 'sleep'];
+    const low = Math.min(s.food, s.fun, s.energy, s.clean);
+    const avg = (s.food + s.fun + s.energy + s.clean) / 4;
+    if (s.food < 20) return ['Hungry', 'sad'];
+    if (s.energy < 20) return ['Sleepy', 'sad'];
+    if (s.clean < 20) return ['Grubby', 'sad'];
+    if (s.fun < 20) return ['Bored', 'sad'];
+    if (avg > 75 && low > 50) return ['Overjoyed', 'joy'];
+    if (avg > 50) return ['Content', 'ok'];
+    return ['Meh', 'meh'];
+  }
+
+  const MOUTHS = {
+    joy: 'M184 202 Q200 226 216 202 Z',
+    ok: 'M188 205 Q200 218 212 205',
+    meh: 'M189 210 L211 210',
+    sad: 'M188 214 Q200 202 212 214',
+    sleep: 'M195 210 Q200 214 205 210'
+  };
+
+  function render() {
+    for (const k of ['food', 'fun', 'energy', 'clean']) {
+      const v = Math.round(s[k]);
+      $('b-' + k).style.width = v + '%';
+      $('b-' + k).style.background = v < 20 ? 'var(--bad)' : v < 45 ? 'var(--warn)' : 'var(--good)';
+      $('v-' + k).textContent = v;
+    }
+    const [label, kind] = mood();
+    $('mood').textContent = label;
+    $('mouth').setAttribute('d', MOUTHS[kind]);
+    $('mouth').setAttribute('fill', kind === 'joy' ? '#7a2f2f' : 'none');
+    $('eyesOpen').hidden = s.asleep;
+    $('eyesClosed').hidden = !s.asleep;
+    $('habitat').classList.toggle('asleep', s.asleep);
+    $('habitat').classList.toggle('sad', kind === 'sad');
+    $('sleepLabel').textContent = s.asleep ? 'Wake' : 'Sleep';
+    $('sleep').classList.toggle('on', s.asleep);
+    for (const id of ['feed', 'play', 'bath']) $(id).disabled = s.asleep;
+    if (document.activeElement !== $('petName')) $('petName').value = s.name;
+    $('pet').setAttribute('aria-label', 'Pat ' + s.name);
+    const mins = Math.floor((Date.now() - s.born) / 6e4 * SPEED);
+    const d = Math.floor(mins / 1440), h = Math.floor(mins % 1440 / 60);
+    $('age').textContent = mins < 60 ? 'Hatched just now' : `Age ${d ? d + 'd ' : ''}${h}h in pet time`;
+  }
+
+  function say(t) { $('log').textContent = t; }
+  function burst(emoji, n = 5) {
+    const fx = $('fx');
+    for (let i = 0; i < n; i++) {
+      const e = document.createElement('span');
+      e.textContent = emoji;
+      e.style.left = (38 + Math.random() * 24) + '%';
+      e.style.top = (32 + Math.random() * 20) + '%';
+      e.style.animationDelay = (i * .12) + 's';
+      fx.appendChild(e);
+      setTimeout(() => e.remove(), 1600 + i * 120);
+    }
+  }
+  function squish() { const p = $('pet'); p.classList.remove('squish'); void p.getBBox(); p.classList.add('squish'); setTimeout(() => p.classList.remove('squish'), 360); }
+
+  const act = (fn) => () => { tick(); fn(); render(); save(); };
+
+  $('feed').onclick = act(() => {
+    if (s.food > 92) { say(`${s.name} is too full to eat another bite.`); return; }
+    s.food = clamp(s.food + 25); s.clean = clamp(s.clean - 4);
+    burst('🍙', 3); squish(); say(`${s.name} munched a rice ball. Nom.`);
+  });
+  $('play').onclick = act(() => {
+    if (s.energy < 12) { say(`${s.name} is too tired to play. Try a nap.`); return; }
+    s.fun = clamp(s.fun + 22); s.energy = clamp(s.energy - 10); s.food = clamp(s.food - 5); s.clean = clamp(s.clean - 6);
+    burst('🧶', 3); burst('✨', 3); squish(); say(`${s.name} chased the yarn ball around the hill.`);
+  });
+  $('bath').onclick = act(() => {
+    s.clean = 100; s.fun = clamp(s.fun - 3);
+    burst('🫧', 7); say(`${s.name} is squeaky clean.`);
+  });
+  $('sleep').onclick = act(() => {
+    s.asleep = !s.asleep;
+    say(s.asleep ? `Lights out. ${s.name} curls up for a nap.` : `${s.name} yawns and wakes up.`);
+  });
+  const pat = act(() => {
+    if (s.asleep) { say(`Shh, ${s.name} is sleeping.`); return; }
+    s.fun = clamp(s.fun + 4); burst('💗', 3); squish();
+    say(['Purr…', `${s.name} leans into the pat.`, `${s.name} wiggles happily.`][Math.floor(Math.random() * 3)]);
+  });
+  $('pet').addEventListener('click', pat);
+  $('pet').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pat(); } });
+
+  $('petName').addEventListener('input', e => { s.name = e.target.value.trim() || 'Mochi'; save(); });
+  $('petName').addEventListener('blur', render);
+
+  $('reset').onclick = () => {
+    $('foot').innerHTML = '<div class="confirm">Say goodbye to ' + s.name.replace(/[<>&"]/g, '') +
+      '? <button id="yes">Yes, start over</button><button id="no">Keep my pet</button></div>';
+    $('yes').onclick = () => { s = fresh(); save(); location.reload(); };
+    $('no').onclick = () => location.reload();
+  };
+
+  tick();
+  setInterval(tick, 2000);
+})();
+</script>
