@@ -1651,7 +1651,8 @@ class SpiderMan extends Hero {
         case 'hang': {
             const reel = this.Lt - this.L;
             this.L += Math.sign(reel) * Math.min(Math.abs(reel), (reel < 0 ? 300 : 120) * dt);
-            this.theta = Math.sin(this.t * 1.4) * 0.06;
+            // sway gently, but never more than about 20px, so a long web can't swing him off screen
+            this.theta = Math.sin(this.t * 1.4) * Math.min(0.06, 20 / (this.L + 16 * this.k));
             this.x = this.anchor.x + (this.L + 16 * this.k) * Math.sin(this.theta);
             this.y = this.anchor.y + (this.L + 16 * this.k) * Math.cos(this.theta);
             this.targetRot = Math.PI - this.theta;
